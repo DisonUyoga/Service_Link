@@ -186,12 +186,51 @@ export class SupabaseStore {
   }
 
   async resolveCategory(value: string | number) {
-    const query = this.client().from("service_categories").select("*");
-    return unwrap(
-      typeof value === "number" || /^\d+$/.test(String(value))
-        ? await query.eq("id", Number(value)).maybeSingle()
-        : await query.ilike("name", String(value)).maybeSingle(),
+    if (typeof value === "number" || /^\d+$/.test(String(value))) {
+      return unwrap(
+        await this.client().from("service_categories").select("*").eq("id", Number(value)).maybeSingle(),
+      );
+    }
+    const exact = unwrap(
+      await this.client().from("service_categories").select("*").ilike("name", String(value)).maybeSingle(),
     );
+    if (exact) return exact;
+    const needle = String(value).trim();
+    if (needle.length < 2) return null;
+    return unwrap(
+      await this.client()
+        .from("service_categories")
+        .select("*")
+        .ilike("name", `%${needle}%`)
+        .limit(1)
+        .maybeSingle(),
+    );
+  }
+
+  /** Best-effort category from an id, name, or free-text description. */
+  async inferCategory(opts?: {
+    categoryId?: number;
+    category?: string | number;
+    categoryName?: string;
+    description?: string;
+  }) {
+    if (opts?.categoryId != null) {
+      const byId = await this.resolveCategory(opts.categoryId);
+      if (byId) return byId;
+    }
+    for (const candidate of [opts?.category, opts?.categoryName]) {
+      if (candidate == null || candidate === "") continue;
+      const resolved = await this.resolveCategory(candidate);
+      if (resolved) return resolved;
+    }
+    const haystack = `${opts?.categoryName || ""} ${opts?.description || ""}`.toLowerCase();
+    if (!haystack.trim()) return null;
+    const categories = (await this.listCategories()) as Array<{ id: number; name: string }>;
+    const hit = categories.find((category) => {
+      const name = category.name.toLowerCase();
+      return haystack.includes(name) || name.split(/\s+/).some((part) => part.length > 3 && haystack.includes(part));
+    });
+    return hit ?? null;
   }
 
   async getProviderByUser(userId: string) {
@@ -1132,9 +1171,19 @@ export class SupabaseStore {
 
   async matchProviders(lat: number, lng: number, opts?: { categoryId?: number; category?: string | number; categoryName?: string; description?: string; pricePreference?: string; urgency?: string; budgetMin?: number; budgetMax?: number; radiusKm?: number; priority?: string } | number, legacyDescription?: string) {
     const input = typeof opts === "number" ? { categoryId: opts, description: legacyDescription } : opts;
-    const category = input?.categoryId ? await this.resolveCategory(input.categoryId) : input?.category ?? input?.categoryName ? await this.resolveCategory(input.category ?? input.categoryName!) : null;
-    // Rank by distance to job pin; ignore hard radius cutoffs (legacy radiusKm kept in response for clients)
-    const nearby = await this.nearbyProviders(lat, lng, category ? String(category.id) : undefined);
+    const category = await this.inferCategory({
+      categoryId: input?.categoryId,
+      category: input?.category,
+      categoryName: input?.categoryName,
+      description: input?.description,
+    });
+    // Rank by distance to job pin. If no category matched free text, still
+    // return nearby verified/available providers instead of an empty list.
+    const nearby = await this.nearbyProviders(
+      lat,
+      lng,
+      category ? String(category.id) : undefined,
+    );
     const desc = (input?.description || "").toLowerCase();
     const options = nearby.map((item: any) => {
       let score = (5 - Math.min(item.distance_km, 20) / 4) + item.rating_avg;
@@ -1146,15 +1195,20 @@ export class SupabaseStore {
       if (input?.budgetMax != null && item.price_min <= input.budgetMax) score += 1;
       return { score: Math.round(score * 100) / 100, id: item.id, user_id: item.id, user_name: item.user_name, category: item.category, category_name: category?.name ?? null, tier: item.tier, rating_avg: item.rating_avg, rating_count: item.rating_count, total_jobs_completed: item.total_jobs_completed, current_status: item.current_status, distance_km: item.distance_km, location_source: item.location_source, last_seen_at: item.last_seen_at, price_min: item.price_min, price_max: item.price_max, predicted_price: Math.round((item.price_min + item.price_max) / 2 + item.distance_km * 25), price_prediction_confidence: item.rating_count >= 10 ? "High" : "Medium", ai_reason: `Nearest-ranked ${item.tier} provider${input?.urgency ? ` for ${input.urgency} request` : ""} (${item.distance_km} km from job pin).` };
     }).sort((a: any, b: any) => b.score - a.score);
-    if (!category) {
-      return {
-        category: null,
-        category_name: null,
-        options: [],
-        message: "No matching service category was found.",
-      };
-    }
-    return { category: category.id, category_name: category.name, options, budget_fit: input?.budgetMax == null ? null : options.some((item: any) => item.price_min <= input.budgetMax!), client_budget_min: input?.budgetMin ?? null, client_budget_max: input?.budgetMax ?? null, priority: input?.priority ?? input?.urgency ?? null, radius_km: null, ranking: "nearest_to_pin" };
+    return {
+      category: category?.id ?? null,
+      category_name: category?.name ?? null,
+      options,
+      message: options.length
+        ? null
+        : "No verified providers are currently available near this pin. Providers must be verified and set to Available.",
+      budget_fit: input?.budgetMax == null ? null : options.some((item: any) => item.price_min <= input.budgetMax!),
+      client_budget_min: input?.budgetMin ?? null,
+      client_budget_max: input?.budgetMax ?? null,
+      priority: input?.priority ?? input?.urgency ?? null,
+      radius_km: null,
+      ranking: "nearest_to_pin",
+    };
   }
 
   async feedbackSummary(providerId: number) {

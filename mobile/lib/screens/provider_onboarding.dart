@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../api/dio_client.dart';
 import '../services/auth_service.dart';
+import '../widgets/bottom_action_bar.dart';
 
 class ProviderOnboardingScreen extends StatefulWidget {
   const ProviderOnboardingScreen({super.key});
@@ -288,7 +289,10 @@ class _ProviderOnboardingScreenState extends State<ProviderOnboardingScreen> {
       appBar: AppBar(title: const Text('Provider onboarding')),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: bottomActionScrollPadding(
+            context,
+            base: const EdgeInsets.all(16),
+          ),
           child: Form(
             key: _formKey,
             child:

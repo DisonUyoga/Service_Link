@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../api/dio_client.dart';
 import '../services/auth_service.dart';
+import '../widgets/bottom_action_bar.dart';
 import '../widgets/modern_ui.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -143,7 +144,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 560),
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+                  padding: bottomActionScrollPadding(
+                    context,
+                    base: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                  ),
                   child: AutofillGroup(
                     child: Form(
                       key: _formKey,

@@ -9,6 +9,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../api/dio_client.dart';
 import '../config/app_config.dart';
 import '../services/auth_service.dart';
+import '../widgets/bottom_action_bar.dart';
 import '../widgets/location_pin_picker.dart';
 import '../widgets/modern_ui.dart';
 import '../widgets/sponsor_ads_carousel.dart';
@@ -1480,8 +1481,7 @@ class _BookingDetailsPageState extends State<_BookingDetailsPage> {
           ],
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.all(16),
+      bottomNavigationBar: BottomActionBar(
         child: ElevatedButton.icon(
           onPressed: _next,
           icon: Icon(isLocationStep

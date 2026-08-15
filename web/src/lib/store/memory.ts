@@ -349,9 +349,36 @@ class MemoryStore {
       const id = Number(value);
       return this.categories.find((c) => c.id === id) ?? null;
     }
+    const needle = String(value).trim().toLowerCase();
     return (
-      this.categories.find((c) => c.name.toLowerCase() === String(value).toLowerCase()) ??
+      this.categories.find((c) => c.name.toLowerCase() === needle) ??
+      this.categories.find((c) => c.name.toLowerCase().includes(needle) || needle.includes(c.name.toLowerCase())) ??
       null
+    );
+  }
+
+  inferCategory(opts?: {
+    categoryId?: number;
+    category?: string | number;
+    categoryName?: string;
+    description?: string;
+  }) {
+    if (opts?.categoryId != null) {
+      const byId = this.resolveCategory(opts.categoryId);
+      if (byId) return byId;
+    }
+    for (const candidate of [opts?.category, opts?.categoryName]) {
+      if (candidate == null || candidate === "") continue;
+      const resolved = this.resolveCategory(candidate);
+      if (resolved) return resolved;
+    }
+    const haystack = `${opts?.categoryName || ""} ${opts?.description || ""}`.toLowerCase();
+    if (!haystack.trim()) return null;
+    return (
+      this.categories.find((category) => {
+        const name = category.name.toLowerCase();
+        return haystack.includes(name) || name.split(/\s+/).some((part) => part.length > 3 && haystack.includes(part));
+      }) ?? null
     );
   }
 
@@ -1328,7 +1355,12 @@ class MemoryStore {
 
   matchProviders(lat: number, lng: number, opts?: { categoryId?: number; category?: string | number; categoryName?: string; description?: string; pricePreference?: string; urgency?: string; budgetMin?: number; budgetMax?: number; radiusKm?: number; priority?: string } | number, legacyDescription?: string) {
     const input = typeof opts === "number" ? { categoryId: opts, description: legacyDescription } : opts;
-    const category = input?.categoryId ? this.resolveCategory(input.categoryId) : input?.category ?? input?.categoryName ? this.resolveCategory(input.category ?? input.categoryName!) : null;
+    const category = this.inferCategory({
+      categoryId: input?.categoryId,
+      category: input?.category,
+      categoryName: input?.categoryName,
+      description: input?.description,
+    });
     const desc = (input?.description || "").toLowerCase();
     const nearby = this.nearbyProviders(lat, lng, category ? String(category.id) : undefined);
     const options = nearby
@@ -1344,15 +1376,20 @@ class MemoryStore {
         return { score: Math.round(score * 100) / 100, id: p.id, user_id: p.id, user_name: p.user_name, category: p.category, category_name: this.categories.find((item) => item.id === p.category)?.name ?? null, tier: p.tier, rating_avg: p.rating_avg, rating_count: p.rating_count, total_jobs_completed: p.total_jobs_completed, current_status: p.current_status, distance_km: p.distance_km, location_source: p.location_source, last_seen_at: p.last_seen_at, price_min: p.price_min, price_max: p.price_max, predicted_price: predicted, price_prediction_confidence: p.rating_count >= 10 ? "High" : "Medium", ai_reason: `Nearest-ranked ${p.tier} provider${input?.urgency ? ` for ${input.urgency} request` : ""} (${p.distance_km} km from job pin).` };
       })
       .sort((a, b) => b.score - a.score);
-    if (!category) {
-      return {
-        category: null,
-        category_name: null,
-        options: [],
-        message: "No matching service category was found.",
-      };
-    }
-    return { category: category.id, category_name: category.name, options, budget_fit: input?.budgetMax == null ? null : options.some((item) => item.price_min <= input.budgetMax!), client_budget_min: input?.budgetMin ?? null, client_budget_max: input?.budgetMax ?? null, priority: input?.priority ?? input?.urgency ?? null, radius_km: null, ranking: "nearest_to_pin" };
+    return {
+      category: category?.id ?? null,
+      category_name: category?.name ?? null,
+      options,
+      message: options.length
+        ? null
+        : "No verified providers are currently available near this pin. Providers must be verified and set to Available.",
+      budget_fit: input?.budgetMax == null ? null : options.some((item) => item.price_min <= input.budgetMax!),
+      client_budget_min: input?.budgetMin ?? null,
+      client_budget_max: input?.budgetMax ?? null,
+      priority: input?.priority ?? input?.urgency ?? null,
+      radius_km: null,
+      ranking: "nearest_to_pin",
+    };
   }
 
   feedbackSummary(providerId: number) {

@@ -50,6 +50,7 @@ class SearchResultsScreen extends StatefulWidget {
 class _SearchResultsScreenState extends State<SearchResultsScreen> {
   bool _loading = true;
   List<dynamic> _providers = [];
+  String? _emptyMessage;
   String? _error;
 
   // Discovery / connection-fee paywall.
@@ -106,9 +107,11 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
 
       final raw = response.data;
       List<dynamic> options = [];
+      String? emptyMessage;
 
       if (raw is Map) {
         options = raw['options'] as List<dynamic>? ?? [];
+        emptyMessage = raw['message']?.toString();
       } else if (raw is List) {
         options = raw;
       }
@@ -117,6 +120,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
 
       setState(() {
         _providers = options;
+        _emptyMessage = emptyMessage;
       });
     } on DioException catch (e) {
       if (!mounted) return;
@@ -355,7 +359,11 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
               : _error != null
                   ? _ErrorState(message: _error!, onRetry: _load)
                   : _providers.isEmpty
-                      ? _EmptyState(query: widget.query, onRetry: _load)
+                      ? _EmptyState(
+                          query: widget.query,
+                          message: _emptyMessage,
+                          onRetry: _load,
+                        )
                       : CustomScrollView(
                           slivers: [
                             SliverToBoxAdapter(
@@ -1248,11 +1256,13 @@ class _PhoneConfirmPageState extends State<_PhoneConfirmPage> {
 
 class _EmptyState extends StatelessWidget {
   final String query;
+  final String? message;
   final VoidCallback onRetry;
 
   const _EmptyState({
     required this.query,
     required this.onRetry,
+    this.message,
   });
 
   @override
@@ -1276,7 +1286,9 @@ class _EmptyState extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'We could not find providers for "$query" right now.',
+                message?.trim().isNotEmpty == true
+                    ? message!
+                    : 'We could not find available providers for "$query" near this pin. Providers must be verified and set to Available in the provider app.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Colors.grey.shade700,

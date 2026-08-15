@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../api/dio_client.dart';
+import '../widgets/bottom_action_bar.dart';
 
 class ComplaintScreen extends StatefulWidget {
   const ComplaintScreen({super.key, this.jobId});
@@ -84,7 +85,10 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
       appBar: AppBar(title: const Text('Report an issue')),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: bottomActionScrollPadding(
+            context,
+            base: const EdgeInsets.all(16),
+          ),
           child: Form(
             key: _formKey,
             child: Column(
