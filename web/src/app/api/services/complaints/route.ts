@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { handleApiError, json, readJson } from "@/lib/api";
-import { requireUser, requireRole } from "@/lib/auth";
+import { requireUser, requireOperationsAccess } from "@/lib/auth";
 import { db } from "@/lib/store";
 
 const createSchema = z.object({
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const user = await requireUser(req);
-    requireRole(user, ["admin"]);
+    requireOperationsAccess(user);
     const body = z
       .object({
         id: z.coerce.number(),

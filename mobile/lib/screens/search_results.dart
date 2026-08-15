@@ -9,6 +9,7 @@ import '../services/auth_service.dart';
 import '../services/discovery_payment_service.dart';
 import '../services/remote_config_service.dart';
 import '../widgets/modern_ui.dart';
+import '../utils/format_label.dart';
 
 class SearchResultsScreen extends StatefulWidget {
   final String query;
@@ -142,13 +143,21 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   }
 
   Future<void> _requestProvider(Map<String, dynamic> provider) async {
-    final jobId = await _createJob(provider);
-    if (!mounted || jobId == null) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-          content: Text('Request sent — your provider has been notified.')),
-    );
-    context.push('/jobs/$jobId');
+    try {
+      final jobId = await _createJob(provider);
+      if (!mounted || jobId == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Request sent — your provider has been notified.')),
+      );
+      // Prefer go over push so we don't stack on a torn-down location route.
+      context.go('/jobs/$jobId');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open the job: $e')),
+      );
+    }
   }
 
   /// Creates the job on the backend and returns its id, or null on failure
@@ -156,8 +165,8 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   Future<int?> _createJob(
     Map<String, dynamic> provider,
   ) async {
-    final providerUserId = int.tryParse(provider['user_id'].toString());
-    if (providerUserId == null) {
+    final providerRef = provider['id'] ?? provider['user_id'] ?? provider['provider_id'];
+    if (providerRef == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Provider information is incomplete')),
       );
@@ -166,12 +175,24 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
 
     try {
       final predictedPrice = provider['predicted_price'];
+      final category = provider['category'] ??
+          provider['category_id'] ??
+          widget.categoryId ??
+          widget.categoryName;
+      if (category == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Missing service category for this request')),
+          );
+        }
+        return null;
+      }
 
       final response = await ApiClient.instance.dio.post(
         '/services/jobs/',
         data: {
-          'provider': providerUserId,
-          'category': provider['category'],
+          'provider': providerRef,
+          'category': category,
           'description': widget.query,
           'client_price_preference': 'standard',
 
@@ -632,9 +653,11 @@ class _ProviderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final fullName = _cleanText(provider['user_name'], 'Service Provider');
+    final fullName = formatHumanLabel(
+      _cleanText(provider['user_name'], 'Service Provider'),
+    );
     final name = locked ? _maskName(fullName) : fullName;
-    final tier = _cleanText(provider['tier'], 'bronze').toUpperCase();
+    final tier = formatHumanLabel(_cleanText(provider['tier'], 'bronze')).toUpperCase();
     final rating = _cleanText(provider['rating_avg'], '0');
     final jobs = _cleanText(provider['total_jobs_completed'], '0');
     final distance = _cleanText(provider['distance_km'], '-');

@@ -40,3 +40,21 @@ export function requireRole(user: Profile, roles: Profile["role"][]) {
     });
   }
 }
+
+/** Full administrators only (Access, Terms, Ads moderation, data cleanup). */
+export function requireAdmin(user: Profile) {
+  if (user.role !== "admin") {
+    throw Object.assign(new Error("Administrator access required."), { status: 403 });
+  }
+}
+
+/** Day-to-day console: administrators and operations staff. */
+export function requireOperationsAccess(user: Profile) {
+  if (user.role !== "admin" && user.role !== "operations") {
+    throw Object.assign(new Error("Operations access required."), { status: 403 });
+  }
+}
+
+export function isPortalStaff(user: Pick<Profile, "role"> | null | undefined) {
+  return user?.role === "admin" || user?.role === "operations";
+}

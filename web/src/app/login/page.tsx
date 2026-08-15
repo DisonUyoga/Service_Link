@@ -23,12 +23,13 @@ export default function LoginPage() {
       await clearAppSession();
       throw new Error(body.detail || `Admin sign-in failed (HTTP ${res.status})`);
     }
-    if (body.user?.role !== "admin") {
+    if (body.user?.role !== "admin" && body.user?.role !== "operations") {
       await clearAppSession();
-      throw new Error("This portal is for administrators only");
+      throw new Error("This portal is for administrators and operations staff only");
     }
     localStorage.setItem("slink_access", body.access);
     if (body.refresh) localStorage.setItem("slink_refresh", body.refresh);
+    if (body.user?.role) localStorage.setItem("slink_role", body.user.role);
     // Hard navigation so the console mounts with the token already persisted
     window.location.replace("/admin");
   }

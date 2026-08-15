@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import '../api/dio_client.dart';
 import '../services/auth_service.dart';
 import '../services/provider_heartbeat_service.dart';
+import '../utils/format_label.dart';
+import '../utils/provider_location_gate.dart';
 
 class ProviderDashboardScreen extends StatefulWidget {
   const ProviderDashboardScreen({super.key});
@@ -38,9 +40,31 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
       (_) => _silentRefresh(),
     );
 
-    // Start broadcasting GPS to the backend so the matcher uses live
-    // coordinates instead of the onboarding base location.
-    ProviderHeartbeatService.instance.start(
+    // Prompt for GPS if needed, then start broadcasting live coordinates.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_ensureLiveLocationThenHeartbeat());
+    });
+  }
+
+  Future<void> _ensureLiveLocationThenHeartbeat() async {
+    if (!mounted) return;
+    final ok = await ProviderLocationGate.ensure(
+      context,
+      purpose:
+          'While you are on shift, S-Link needs your live location so nearby customers can match you.',
+    );
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Location is off or blocked. Turn it on so customers can find you nearby.',
+          ),
+        ),
+      );
+      return;
+    }
+    await ProviderHeartbeatService.instance.start(
       interval: const Duration(seconds: 30),
     );
   }
@@ -217,7 +241,7 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
       case 'cancelled':
         return 'Cancelled';
       default:
-        return raw.replaceAll('_', ' ');
+        return formatHumanLabel(raw);
     }
   }
 

@@ -5,6 +5,7 @@ import { signAccessToken, signRefreshToken } from "@/lib/jwt";
 import { verifyFirebaseIdToken } from "@/lib/firebase-admin-verify";
 import { assertProviderCanLogin } from "@/lib/provider-gate";
 import { db } from "@/lib/store";
+import { createServiceClient } from "@/lib/supabase/admin";
 import type { Role } from "@/lib/types";
 
 /**
@@ -25,19 +26,30 @@ const schema = z
     message: "email or id_token is required",
   });
 
-function adminAllowlist(): string[] {
-  return (process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-}
+type PortalRole = "admin" | "operations";
 
-function isAllowedAdminEmail(email: string) {
-  const list = adminAllowlist();
-  if (list.length === 0) {
-    return env.demoMode || env.NODE_ENV !== "production";
+async function getPortalAllowlistRole(email: string): Promise<PortalRole | null> {
+  const normalized = email.trim().toLowerCase();
+  try {
+    const { data, error } = await createServiceClient()
+      .from("admin_allowlist")
+      .select("email, role")
+      .eq("email", normalized)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return data.role === "operations" ? "operations" : "admin";
+  } catch {
+    // Backward-compatible fallback while a deployment is waiting for migration 015.
+    const legacy = (process.env.ADMIN_EMAILS || "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
+    if (legacy.length === 0) {
+      return env.demoMode || env.NODE_ENV !== "production" ? "admin" : null;
+    }
+    return legacy.includes(normalized) ? "admin" : null;
   }
-  return list.includes(email.toLowerCase());
 }
 
 async function issueTokens(
@@ -91,24 +103,25 @@ export async function POST(req: Request) {
     const body = schema.parse(await readJson(req));
     const isAdminPortal = body.portal === "admin";
 
-    // Admin portal always requires a verified Firebase ID token
+    // Admin / operations portal always requires a verified Firebase ID token
     if (isAdminPortal) {
       if (!body.id_token) {
         return detail("id_token is required for admin portal sign-in", 400);
       }
       const verified = await verifyFirebaseIdToken(body.id_token);
-      if (!isAllowedAdminEmail(verified.email)) {
+      const portalRole = await getPortalAllowlistRole(verified.email);
+      if (!portalRole) {
         return detail(
-          "This Google account is not authorized for the admin portal. Ask an owner to add your email to ADMIN_EMAILS.",
+          "This Google account is not authorized for the admin portal. Ask an owner to add your email under Access.",
           403,
         );
       }
       const { profile, created } = await db.googleLogin(verified.email, verified.name, {
         firebase_uid: verified.uid,
-        role: "admin",
+        role: portalRole,
       });
-      if (profile.role !== "admin") {
-        return detail("Admin access only", 403);
+      if (profile.role !== "admin" && profile.role !== "operations") {
+        return detail("Admin or operations access only", 403);
       }
       return issueTokens(profile, created, verified.name);
     }

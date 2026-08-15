@@ -9,6 +9,7 @@ import '../api/dio_client.dart';
 import '../config/app_config.dart';
 import '../services/auth_service.dart';
 import '../widgets/modern_ui.dart';
+import '../utils/format_label.dart';
 
 /// Admin-only mobile dashboard backed by:
 ///  - GET /services/admin/monitor/providers/live/
@@ -610,11 +611,11 @@ class _ProviderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = provider['user_name']?.toString() ?? 'Provider';
-    final tier = provider['tier']?.toString() ?? 'bronze';
+    final name = formatHumanLabel(provider['user_name'] ?? 'Provider');
+    final tier = formatHumanLabel(provider['tier'] ?? 'bronze');
     final rating = provider['rating_avg']?.toString() ?? '0';
     final completed = provider['total_jobs_completed']?.toString() ?? '0';
-    final status = provider['current_status']?.toString() ?? 'offline';
+    final status = formatHumanLabel(provider['current_status'] ?? 'offline');
 
     return ModernCard(
       padding: const EdgeInsets.all(14),

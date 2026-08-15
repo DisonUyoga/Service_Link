@@ -37,12 +37,18 @@ class LocationPinPicker extends StatefulWidget {
   State<LocationPinPicker> createState() => _LocationPinPickerState();
 }
 
-class _LocationPinPickerState extends State<LocationPinPicker> {
+class _LocationPinPickerState extends State<LocationPinPicker>
+    with AutomaticKeepAliveClientMixin {
   late JobLocation _location;
   final _address = TextEditingController();
   Timer? _debounce;
   bool _loading = false;
   List<Map<String, dynamic>> _predictions = [];
+  GoogleMapController? _mapController;
+  bool _mapReady = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -54,22 +60,39 @@ class _LocationPinPickerState extends State<LocationPinPicker> {
           address: 'Pin on the map',
         );
     _address.text = _location.address;
+    // Notify parent of the initial pin so booking can continue even if the
+    // user never moves the marker.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onChanged(_location);
+    });
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
     _address.dispose();
+    // Do not dispose GoogleMapController here — the GoogleMap widget owns it
+    // and disposing twice can kill the Android process.
+    _mapController = null;
     super.dispose();
   }
 
-  void _setLocation(JobLocation location) {
+  Future<void> _setLocation(JobLocation location, {bool moveCamera = true}) async {
     setState(() {
       _location = location;
       _address.text = location.address;
       _predictions = [];
     });
     widget.onChanged(location);
+    if (moveCamera && _mapController != null) {
+      try {
+        await _mapController!.animateCamera(
+          CameraUpdate.newLatLng(LatLng(location.lat, location.lng)),
+        );
+      } catch (_) {
+        // Map may already be disposed during route transitions.
+      }
+    }
   }
 
   void _search(String input) {
@@ -130,7 +153,7 @@ class _LocationPinPickerState extends State<LocationPinPicker> {
       final lat = (point['lat'] as num?)?.toDouble();
       final lng = (point['lng'] as num?)?.toDouble();
       if (lat == null || lng == null) throw const FormatException();
-      _setLocation(JobLocation(
+      await _setLocation(JobLocation(
         lat: lat,
         lng: lng,
         address: (result['formatted_address'] ?? fallbackAddress).toString(),
@@ -149,8 +172,142 @@ class _LocationPinPickerState extends State<LocationPinPicker> {
     }
   }
 
+  Widget _buildMap(LatLng pin) {
+    if (!AppConfig.enableGoogleMaps) {
+      return _MapFallback(
+        address: _location.address,
+        lat: _location.lat,
+        lng: _location.lng,
+      );
+    }
+
+    return Stack(
+      children: [
+        GoogleMap(
+          // Stable key so Flutter does not recreate the native view on rebuilds.
+          key: const ValueKey('job-location-pin-map'),
+          initialCameraPosition: CameraPosition(target: pin, zoom: 15.5),
+          markers: {
+            Marker(
+              markerId: const MarkerId('job-location'),
+              position: pin,
+              draggable: true,
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueAzure,
+              ),
+              onDragEnd: (point) {
+                unawaited(_setLocation(
+                  JobLocation(
+                    lat: point.latitude,
+                    lng: point.longitude,
+                    address: _address.text.trim().isEmpty
+                        ? 'Dropped map pin'
+                        : _address.text.trim(),
+                    placeId: null,
+                  ),
+                  moveCamera: false,
+                ));
+              },
+            ),
+          },
+          onMapCreated: (controller) {
+            _mapController = controller;
+            if (mounted) setState(() => _mapReady = true);
+          },
+          onTap: (point) {
+            unawaited(_setLocation(
+              JobLocation(
+                lat: point.latitude,
+                lng: point.longitude,
+                address: _address.text.trim().isEmpty
+                    ? 'Dropped map pin'
+                    : _address.text.trim(),
+                placeId: null,
+              ),
+              moveCamera: false,
+            ));
+          },
+          myLocationButtonEnabled: false,
+          zoomControlsEnabled: false,
+          compassEnabled: false,
+          mapToolbarEnabled: false,
+          mapType: MapType.normal,
+          liteModeEnabled: false,
+        ),
+        if (!_mapReady)
+          const ColoredBox(
+            color: Color(0xFFE8EEF5),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+        Positioned(
+          top: 12,
+          left: 12,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.94),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.touch_app_rounded, color: kBrandBlue, size: 17),
+                  SizedBox(width: 6),
+                  Text(
+                    'Tap map or drag pin',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          left: 12,
+          right: 12,
+          bottom: 12,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: kBrandNavy.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  const Icon(Icons.push_pin_rounded, color: kBrandCyan),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _location.address,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final pin = LatLng(_location.lat, _location.lng);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -229,112 +386,57 @@ class _LocationPinPickerState extends State<LocationPinPicker> {
           height: 300,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
-            child: Stack(
-              children: [
-                GoogleMap(
-                  initialCameraPosition:
-                      CameraPosition(target: pin, zoom: 15.5),
-                  markers: {
-                    Marker(
-                      markerId: const MarkerId('job-location'),
-                      position: pin,
-                      draggable: true,
-                      icon: BitmapDescriptor.defaultMarkerWithHue(
-                        BitmapDescriptor.hueAzure,
-                      ),
-                      onDragEnd: (point) => _setLocation(JobLocation(
-                        lat: point.latitude,
-                        lng: point.longitude,
-                        address: _address.text.trim().isEmpty
-                            ? 'Dropped map pin'
-                            : _address.text.trim(),
-                        placeId: null,
-                      )),
-                    ),
-                  },
-                  onTap: (point) => _setLocation(JobLocation(
-                    lat: point.latitude,
-                    lng: point.longitude,
-                    address: _address.text.trim().isEmpty
-                        ? 'Dropped map pin'
-                        : _address.text.trim(),
-                    placeId: null,
-                  )),
-                  myLocationButtonEnabled: false,
-                  zoomControlsEnabled: false,
-                  compassEnabled: false,
-                  mapToolbarEnabled: false,
-                  mapType: MapType.normal,
-                ),
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.94),
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.12),
-                          blurRadius: 14,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: const Padding(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.touch_app_rounded,
-                              color: kBrandBlue, size: 17),
-                          SizedBox(width: 6),
-                          Text(
-                            'Tap map or drag pin',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 12,
-                  right: 12,
-                  bottom: 12,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: kBrandNavy.withValues(alpha: 0.92),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.push_pin_rounded, color: kBrandCyan),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              _location.address,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            child: _buildMap(pin),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _MapFallback extends StatelessWidget {
+  const _MapFallback({
+    required this.address,
+    required this.lat,
+    required this.lng,
+  });
+
+  final String address;
+  final double lat;
+  final double lng;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: const Color(0xFFE8EEF5),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.map_outlined, size: 40, color: kBrandBlue),
+              const SizedBox(height: 12),
+              Text(
+                address,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}',
+                style: const TextStyle(color: Color(0xFF58718C), fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Map preview unavailable. Search above still works.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFF58718C), fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

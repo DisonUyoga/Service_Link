@@ -145,7 +145,11 @@ class AuthService {
       return true;
     } on DioException catch (e) {
       debugPrint(
-        'AuthService.login error: ${e.response?.statusCode} ${e.response?.data}',
+        'AuthService.login error: type=${e.type} '
+        'uri=${e.requestOptions.uri} '
+        'status=${e.response?.statusCode} '
+        'message=${e.message} '
+        'error=${e.error}',
       );
 
       _lastLoginError = _extractErrorMessage(
@@ -270,14 +274,23 @@ class AuthService {
   /// turns network/captive-portal/server-page failures into plain English
   /// instead of leaking raw HTML to the user.
   String _extractErrorMessage(DioException e, {required String fallback}) {
-    // 1. No response at all → connectivity problem.
+    // 1. No response at all → connectivity / DNS / wrong host.
     switch (e.type) {
       case DioExceptionType.connectionError:
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
-        return "Can't reach the server. Check your internet connection and "
-            'try again.';
+        final host = e.requestOptions.uri.host;
+        if (host.contains('192.168.') ||
+            host.contains('10.0.2.2') ||
+            host == 'localhost') {
+          return "Can't reach the local API at $host. Fully restart the app so "
+              'it uses the production server, or start the Next.js API on that machine.';
+        }
+        return host.isEmpty
+            ? "Can't reach the server. Check your internet connection and try again."
+            : "Can't reach $host. Check Wi‑Fi/data, then stop and re-run the app "
+                '(hot reload will not update the API URL).';
       default:
         break;
     }

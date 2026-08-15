@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { handleApiError, json, readJson } from "@/lib/api";
-import { requireUser, requireRole } from "@/lib/auth";
+import { requireUser, requireOperationsAccess } from "@/lib/auth";
 import { db } from "@/lib/store";
 
 export async function GET(req: Request) {
   try {
     const user = await requireUser(req);
-    requireRole(user, ["admin"]);
+    requireOperationsAccess(user);
     const url = new URL(req.url);
     const profileId = Number(url.searchParams.get("profile_id") || 0);
     if (!profileId) return json({ detail: "profile_id required" }, 400);
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const user = await requireUser(req);
-    requireRole(user, ["admin"]);
+    requireOperationsAccess(user);
     const body = z
       .object({
         document_id: z.coerce.number(),

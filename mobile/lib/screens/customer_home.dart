@@ -2,14 +2,17 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../api/dio_client.dart';
+import '../config/app_config.dart';
 import '../services/auth_service.dart';
 import '../widgets/location_pin_picker.dart';
 import '../widgets/modern_ui.dart';
 import '../widgets/sponsor_ads_carousel.dart';
+import '../utils/format_label.dart';
 
 // ── Budget dialog uses unified brand palette from modern_ui.dart ──
 
@@ -1460,10 +1463,21 @@ class _BookingDetailsPageState extends State<_BookingDetailsPage> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child:
-              isLocationStep ? _buildLocationStep() : _buildDescriptionStep(),
+        // Keep both steps mounted so the Google Map PlatformView is not
+        // disposed when moving to the description step (that dispose can
+        // hard-kill the Android process).
+        child: IndexedStack(
+          index: _step.clamp(0, 1),
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: _buildLocationStep(),
+            ),
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: _buildDescriptionStep(),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: SafeArea(
@@ -1496,7 +1510,11 @@ class _BookingDetailsPageState extends State<_BookingDetailsPage> {
           const Text(
               'Search for a landmark or drop the pin at the exact job location.'),
           const SizedBox(height: 16),
-          LocationPinPicker(onChanged: (location) => _location = location),
+          LocationPinPicker(
+            onChanged: (location) {
+              setState(() => _location = location);
+            },
+          ),
           const SizedBox(height: 24),
           Text('Who will receive the provider?',
               style: Theme.of(context)
@@ -1545,6 +1563,7 @@ class _BookingDetailsPageState extends State<_BookingDetailsPage> {
 
   Widget _buildDescriptionStep() {
     final suggestion = _spellSuggestion;
+    final pin = LatLng(_location.lat, _location.lng);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1556,6 +1575,86 @@ class _BookingDetailsPageState extends State<_BookingDetailsPage> {
         const SizedBox(height: 6),
         Text(
             'Tell providers about ${widget.serviceName} before they are matched.'),
+        const SizedBox(height: 14),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFBFDBFE)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.push_pin_rounded, color: Color(0xFF2563EB)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Selected job pin',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          Text(
+                            _location.address,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.grey.shade700),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() => _step = 0),
+                      child: const Text('Edit'),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                height: 150,
+                child: AppConfig.enableGoogleMaps
+                    ? GoogleMap(
+                        key: ValueKey(
+                          'booking-pin-${pin.latitude.toStringAsFixed(5)}-${pin.longitude.toStringAsFixed(5)}',
+                        ),
+                        initialCameraPosition:
+                            CameraPosition(target: pin, zoom: 15.2),
+                        markers: {
+                          Marker(
+                            markerId: const MarkerId('booking-pin'),
+                            position: pin,
+                            icon: BitmapDescriptor.defaultMarkerWithHue(
+                              BitmapDescriptor.hueRose,
+                            ),
+                          ),
+                        },
+                        myLocationButtonEnabled: false,
+                        zoomControlsEnabled: false,
+                        compassEnabled: false,
+                        mapToolbarEnabled: false,
+                        liteModeEnabled: false,
+                        scrollGesturesEnabled: false,
+                        rotateGesturesEnabled: false,
+                        tiltGesturesEnabled: false,
+                      )
+                    : ColoredBox(
+                        color: const Color(0xFFEFF6FF),
+                        child: Center(
+                          child: Text(
+                            '${_location.lat.toStringAsFixed(5)}, ${_location.lng.toStringAsFixed(5)}',
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 16),
         TextField(
           controller: _description,
@@ -1677,7 +1776,7 @@ class _CustomerJobCard extends StatelessWidget {
       case 'cancelled':
         return 'Cancelled';
       default:
-        return raw.replaceAll('_', ' ');
+        return formatHumanLabel(raw);
     }
   }
 

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../api/dio_client.dart';
 import '../widgets/modern_ui.dart';
+import '../utils/format_label.dart';
 
 class CustomerJobsScreen extends StatefulWidget {
   const CustomerJobsScreen({super.key});
@@ -141,7 +142,7 @@ class _JobListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = (job['category_name'] ?? 'Service').toString();
-    final status = (job['status'] ?? '').toString().replaceAll('_', ' ');
+    final status = formatHumanLabel(job['status'] ?? '');
 
     return ModernCard(
       onTap: onTap,

@@ -33,6 +33,9 @@ backend/staticfiles/
 *.py[cod]
 *.pyc
 
+# Local audit/backup artifacts from Kenya cleanup
+supabase/audits/
+
 # Large / backup / temp (not source of truth)
 backend_old_backup/
 mobile_removed_*/

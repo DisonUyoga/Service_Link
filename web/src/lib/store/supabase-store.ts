@@ -113,7 +113,11 @@ export class SupabaseStore {
   }
 
   async authenticate(username: string, password: string) {
-    const found = await this.findProfileByUsername(username);
+    const login = username.trim();
+    let found = await this.findProfileByUsername(login);
+    if (!found && login.includes("@")) {
+      found = await this.findProfileByEmail(login.toLowerCase());
+    }
     if (!found?.password_hash || !(await verifyPassword(password, found.password_hash))) {
       fail("No active account found with the given credentials", 401);
     }
@@ -138,7 +142,14 @@ export class SupabaseStore {
       for (let suffix = 1; await this.findProfileByUsername(username); suffix += 1) {
         username = `${base}${suffix}`;
       }
-      const role = opts?.role === "admin" ? "admin" : opts?.role === "provider" ? "provider" : "customer";
+      const role =
+        opts?.role === "admin"
+          ? "admin"
+          : opts?.role === "operations"
+            ? "operations"
+            : opts?.role === "provider"
+              ? "provider"
+              : "customer";
       const row = unwrap(
         await this.client()
           .from("profiles")
@@ -159,7 +170,7 @@ export class SupabaseStore {
     } else {
       const patch: Partial<Profile> = {};
       if (name && (!found.full_name || found.full_name === found.username)) patch.full_name = name;
-      if (opts?.role === "admin") patch.role = "admin";
+      if (opts?.role === "admin" || opts?.role === "operations") patch.role = opts.role;
       if (opts?.firebase_uid) patch.firebase_uid = opts.firebase_uid;
       if (Object.keys(patch).length) {
         found = profile(
@@ -357,6 +368,49 @@ export class SupabaseStore {
     return Promise.all(providers.map((item) => this.providerAnalytics(item.id)));
   }
 
+  async getAdminProviderDetail(profileId: number) {
+    const found = await this.getProviderById(profileId);
+    if (!found) fail("Provider not found", 404);
+    const [user, category, docs] = await Promise.all([
+      this.getProfile(found.user_id),
+      found.category_id ? this.resolveCategory(found.category_id) : Promise.resolve(null),
+      this.listProviderDocuments(found.id),
+    ]);
+
+    return {
+      id: found.id,
+      user_id: found.user_id,
+      user_name: user?.username || "",
+      user_email: user?.email || "",
+      user_phone: user?.phone || "",
+      category: category ? { id: category.id, name: category.name } : null,
+      bio: found.bio || "",
+      tier: found.tier,
+      rating_avg: found.rating_avg,
+      rating_count: found.rating_count,
+      total_jobs_completed: found.total_jobs_completed,
+      price_min: Number(found.price_min),
+      price_max: Number(found.price_max),
+      average_response_minutes: Number(found.average_response_minutes),
+      service_radius_km: found.service_radius_km,
+      area_formatted_address: found.area_formatted_address || "",
+      base_lat: found.base_lat,
+      base_lng: found.base_lng,
+      current_lat: found.current_lat,
+      current_lng: found.current_lng,
+      last_seen_at: found.last_seen_at,
+      current_status: found.current_status,
+      verified: found.verified,
+      is_suspended: found.is_suspended,
+      suspended_reason: found.suspended_reason || "",
+      profile_complete: await this.isProviderProfileComplete(found),
+      id_document_kind: found.id_document_kind || "",
+      id_document_number: found.id_document_number || "",
+      terms_accepted_at: found.terms_accepted_at,
+      documents: docs,
+    };
+  }
+
   async addDocument(
     userId: string,
     title: string,
@@ -445,6 +499,7 @@ export class SupabaseStore {
     const providerUser = providerProfile ? await this.getProfile(providerProfile.user_id) : null;
     const revealPhone =
       viewer?.role === "admin" ||
+      viewer?.role === "operations" ||
       viewer?.id === job.customer_id ||
       (job.provider_id != null && viewer?.id === job.provider_id && job.status !== "pending_provider") ||
       job.status !== "pending_provider";
@@ -1306,7 +1361,7 @@ export class SupabaseStore {
 
   async listComplaints(user: Profile) {
     let query = this.client().from("complaints").select("*").order("created_at", { ascending: false });
-    if (user.role !== "admin") query = query.eq("reporter_id", user.id);
+    if (user.role !== "admin" && user.role !== "operations") query = query.eq("reporter_id", user.id);
     return unwrap(await query) as any[];
   }
 

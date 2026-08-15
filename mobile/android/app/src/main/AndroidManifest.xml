@@ -10,6 +10,10 @@
         android:label="S-Link"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Google Maps SDK — MUST be under <application>, not <activity>. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyCXwWV5lznqOhMVp88nbaP_Onreibhm2Z4" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -26,11 +30,7 @@
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
-              
               />
-            <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyAyJb-xED-qEcJ1D8LQNFoaxFzZJMKLDms" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

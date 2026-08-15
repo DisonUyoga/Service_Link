@@ -1,4 +1,4 @@
-export type Role = "customer" | "provider" | "admin";
+export type Role = "customer" | "provider" | "admin" | "operations";
 export type ProviderTier = "bronze" | "silver" | "gold" | "platinum";
 export type ProviderStatus = "available" | "busy" | "offline";
 export type JobStatus =

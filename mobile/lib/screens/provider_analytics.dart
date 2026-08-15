@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/dio_client.dart';
 import '../widgets/modern_ui.dart';
+import '../utils/format_label.dart';
 
 class ProviderAnalyticsScreen extends StatefulWidget {
   const ProviderAnalyticsScreen({super.key});
@@ -55,7 +56,7 @@ class _ProviderAnalyticsScreenState extends State<ProviderAnalyticsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _data?['user_name'] ?? 'Provider',
+                        formatHumanLabel(_data?['user_name'] ?? 'Provider'),
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),

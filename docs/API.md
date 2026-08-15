@@ -79,4 +79,65 @@ POST `{ category, body, job_id?, against_user_id? }`
 
 ## Migrations
 
-`008_remote_job_pin.sql` … `012_grants_terms_complaints.sql` under `supabase/migrations/`.
+`008_remote_job_pin.sql` … `014_admin_allowlist.sql` under `supabase/migrations/`.
+
+Notable recent:
+
+| Migration | Adds |
+|-----------|------|
+| `013_ai_dispatch_and_fcm.sql` | `job_dispatches`, `provider_device_tokens` |
+| `014_admin_allowlist.sql` | `admin_allowlist` |
+
+See [`CHANGELOG.md`](CHANGELOG.md) for behaviour notes.
+
+## Devices / FCM
+
+### `POST /devices/push-token/`
+
+Authenticated provider. Body: `{ token, platform? }`. Upserts into `provider_device_tokens`.
+
+Used by Flutter `PushNotificationService` after login (provider role only).
+
+## Dispatch / job notify
+
+Job create (`POST /services/jobs/`) may start AI dispatch (`web/src/lib/dispatch.ts`):
+
+- Rank providers → insert `job_dispatches`
+- FCM notify rank #1 (`data.type=job_offer`)
+- Later: `POST /services/jobs/expire-pending/` (cron) broadcasts remaining (`job_broadcast`)
+
+Requires `GEMINI_API_KEY` and `FIREBASE_SERVICE_ACCOUNT_JSON` for full behaviour.
+
+## Provider heartbeat
+
+### `POST /services/providers/me/heartbeat/`
+
+`{ lat, lng, status? }` — updates live coords; may append `provider_locations` when on an active job.
+
+### `GET /services/providers/me/heartbeat/status/`
+
+Live status + recent trail points.
+
+## Admin APIs
+
+| Method | Path | Notes |
+|--------|------|--------|
+| `GET` | `/admin/overview/` | jobs, payments, providers, ads, categories |
+| `GET` | `/admin/live/` | SSE refresh for map |
+| `GET\|POST\|DELETE` | `/admin/allowed-emails/` | allowlist CRUD |
+| `GET\|POST\|PATCH` | `/admin/terms/` | terms versions |
+| `GET` | `/admin/data-quality/` | Kenya audit |
+| `POST` | `/admin/data-quality/cleanup/` | remove outside-Kenya (admin) |
+| `GET` | `/services/providers/admin/?provider_id=` | full profile + documents |
+| `GET\|PATCH` | `/services/providers/admin/` | list / verify·suspend |
+| `GET\|PATCH` | `/services/providers/admin/documents/` | KYC review |
+
+## Auth
+
+### `POST /accounts/token/`
+
+Login with **username or email** + password.
+
+### `POST /accounts/google-login/`
+
+Firebase `id_token` (admin web) or mobile `{ email, name }` path. Admin access requires allowlist membership.

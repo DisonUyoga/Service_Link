@@ -61,6 +61,19 @@ Lightweight domain dictionary via `/api/ai/spellcheck/` plus suggestion chips on
 
 ## Admin runbook
 
-1. **KYC review:** Admin → Providers → Docs → Approve/Reject each document → Verify provider when satisfied.
+1. **KYC review:** Admin → Providers → open provider → Approve/Reject documents → Verify when satisfied. See [`ADMIN.md`](ADMIN.md).
 2. **Complaints:** Admin → Complaints → Review / Resolve / Dismiss with notes.
-3. **Live ops:** map on Admin home uses job pins + provider heartbeats.
+3. **Live ops:** Overview map uses job pins + provider heartbeats (SSE refresh).
+4. **Terms:** Admin → Terms → create/publish versioned ToS for all / customer / provider.
+5. **Access:** Admin → Access → allowlist emails for Google admin login.
+6. **Data quality:** Admin → Data quality → audit / clean providers outside Kenya.
+
+## AI dispatch + push (FCM)
+
+When a job is created:
+
+1. Eligible providers are **ranked** (Gemini + distance/quality signals).
+2. Rank #1 is **notified** via Firebase Cloud Messaging (`job_offer`).
+3. If they do not accept in time, the job **broadcasts** to other ranked providers (`job_broadcast`).
+
+Providers must register an FCM device token (`POST /api/devices/push-token/`). Details: [`CHANGELOG.md`](CHANGELOG.md).

@@ -17,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String _username = '';
   String _password = '';
   bool _loading = false;
+  bool _obscurePassword = true;
   String? _error;
   bool _googleLoading = false;
 
@@ -127,20 +128,38 @@ class _LoginScreenState extends State<LoginScreen> {
                           children: [
                             TextFormField(
                               decoration: const InputDecoration(
-                                labelText: 'Username',
+                                labelText: 'Username or email',
                                 prefixIcon: Icon(Icons.person_outline),
                               ),
-                              validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                              autofillHints: const [
+                                AutofillHints.username,
+                                AutofillHints.email,
+                              ],
+                              validator: (v) =>
+                                  v == null || v.isEmpty ? 'Required' : null,
                               onSaved: (v) => _username = v!.trim(),
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Password',
-                                prefixIcon: Icon(Icons.lock_outline),
+                                prefixIcon: const Icon(Icons.lock_outline),
+                                suffixIcon: IconButton(
+                                  tooltip: _obscurePassword
+                                      ? 'Show password'
+                                      : 'Hide password',
+                                  onPressed: () => setState(
+                                      () => _obscurePassword = !_obscurePassword),
+                                  icon: Icon(
+                                    _obscurePassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                  ),
+                                ),
                               ),
-                              obscureText: true,
-                              validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                              obscureText: _obscurePassword,
+                              validator: (v) =>
+                                  v == null || v.isEmpty ? 'Required' : null,
                               onSaved: (v) => _password = v!.trim(),
                             ),
                             AnimatedSwitcher(

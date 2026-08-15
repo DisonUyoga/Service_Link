@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -8,6 +9,7 @@ import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/push_notification_service.dart';
 import 'services/remote_config_service.dart';
+import 'config/app_config.dart';
 import 'screens/admin_dashboard.dart';
 import 'screens/customer_shell.dart';
 import 'screens/search_results.dart';
@@ -24,6 +26,10 @@ import 'widgets/modern_ui.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  debugPrint(
+    'S-Link API_BASE_URL=${AppConfig.apiBaseUrl} '
+    '(${AppConfig.isUsingProductionApi ? 'production' : 'local'})',
+  );
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -32,6 +38,16 @@ Future<void> main() async {
   // Best-effort: pull feature flags from /api/config/. Failures fall back to
   // safe defaults (paywall OFF) so the app still works offline / first run.
   unawaited(RemoteConfigService.instance.refresh());
+  // Dark status-bar icons on light screens (transparent AppBars used to wash them out).
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: Colors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    ),
+  );
   runApp(const SLinkApp());
 }
 
@@ -184,15 +200,24 @@ class SLinkApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: kSoftBackground,
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent,
+          backgroundColor: Colors.white,
           foregroundColor: kBrandNavy,
           elevation: 0,
+          scrolledUnderElevation: 0,
           centerTitle: false,
+          surfaceTintColor: Colors.transparent,
+          systemOverlayStyle: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.dark,
+            statusBarBrightness: Brightness.light,
+          ),
           titleTextStyle: TextStyle(
             color: kBrandNavy,
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.w800,
+            letterSpacing: -0.2,
           ),
+          toolbarHeight: 56,
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,

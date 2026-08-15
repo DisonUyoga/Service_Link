@@ -257,7 +257,11 @@ class MemoryStore {
   }
 
   async authenticate(username: string, password: string) {
-    const profile = this.findProfileByUsername(username);
+    const login = username.trim();
+    let profile = this.findProfileByUsername(login);
+    if (!profile && login.includes("@")) {
+      profile = this.findProfileByEmail(login.toLowerCase());
+    }
     if (!profile?.password_hash) {
       throw Object.assign(new Error("No active account found with the given credentials"), {
         status: 401,
@@ -292,16 +296,18 @@ class MemoryStore {
       const role =
         opts?.role === "admin"
           ? "admin"
-          : opts?.role === "provider"
-            ? "provider"
-            : "customer";
-      if (role === "admin") {
+          : opts?.role === "operations"
+            ? "operations"
+            : opts?.role === "provider"
+              ? "provider"
+              : "customer";
+      if (role === "admin" || role === "operations") {
         const id = randomUUID();
         profile = {
           id,
           username: unique,
           email,
-          role: "admin",
+          role,
           full_name: name || unique,
           phone: "",
           password_hash: await hashPassword(randomUUID()),
@@ -324,8 +330,8 @@ class MemoryStore {
       if (name && (!profile.full_name || profile.full_name === profile.username)) {
         profile.full_name = name;
       }
-      if (opts?.role === "admin") {
-        profile.role = "admin";
+      if (opts?.role === "admin" || opts?.role === "operations") {
+        profile.role = opts.role;
       }
       if (opts?.firebase_uid) {
         profile.firebase_uid = opts.firebase_uid;
@@ -526,6 +532,47 @@ class MemoryStore {
     return [...this.providers.values()].map((p) => this.providerAnalytics(p.id));
   }
 
+  getAdminProviderDetail(profileId: number) {
+    const provider = this.getProviderById(profileId);
+    if (!provider) throw Object.assign(new Error("Provider not found"), { status: 404 });
+    const user = this.getProfile(provider.user_id);
+    const category = provider.category_id ? this.resolveCategory(provider.category_id) : null;
+    const documents = this.listProviderDocuments(provider.id);
+
+    return {
+      id: provider.id,
+      user_id: provider.user_id,
+      user_name: user?.username || "",
+      user_email: user?.email || "",
+      user_phone: user?.phone || "",
+      category: category ? { id: category.id, name: category.name } : null,
+      bio: provider.bio || "",
+      tier: provider.tier,
+      rating_avg: provider.rating_avg,
+      rating_count: provider.rating_count,
+      total_jobs_completed: provider.total_jobs_completed,
+      price_min: provider.price_min,
+      price_max: provider.price_max,
+      average_response_minutes: provider.average_response_minutes,
+      service_radius_km: provider.service_radius_km,
+      area_formatted_address: provider.area_formatted_address || "",
+      base_lat: provider.base_lat,
+      base_lng: provider.base_lng,
+      current_lat: provider.current_lat,
+      current_lng: provider.current_lng,
+      last_seen_at: provider.last_seen_at,
+      current_status: provider.current_status,
+      verified: provider.verified,
+      is_suspended: provider.is_suspended,
+      suspended_reason: provider.suspended_reason || "",
+      profile_complete: this.isProviderProfileComplete(provider),
+      id_document_kind: provider.id_document_kind || "",
+      id_document_number: provider.id_document_number || "",
+      terms_accepted_at: provider.terms_accepted_at,
+      documents,
+    };
+  }
+
   addDocument(
     userId: string,
     title: string,
@@ -603,6 +650,7 @@ class MemoryStore {
     const providerUser = job.provider_id ? this.profiles.get(job.provider_id) : null;
     const revealPhone =
       viewer?.role === "admin" ||
+      viewer?.role === "operations" ||
       viewer?.id === job.customer_id ||
       (job.provider_id != null && viewer?.id === job.provider_id && job.status !== "pending_provider") ||
       job.status !== "pending_provider";
@@ -647,7 +695,7 @@ class MemoryStore {
   listJobs(user: Profile) {
     const all = [...this.jobs.values()];
     let filtered: JobRequest[];
-    if (user.role === "admin") filtered = all;
+    if (user.role === "admin" || user.role === "operations") filtered = all;
     else if (user.role === "provider") {
       filtered = all.filter((j) => j.provider_id === user.id);
     } else {
@@ -1479,7 +1527,9 @@ class MemoryStore {
   }
 
   listComplaints(user: Profile) {
-    if (user.role === "admin") return [...this.complaints].sort((a, b) => b.created_at.localeCompare(a.created_at));
+    if (user.role === "admin" || user.role === "operations") {
+      return [...this.complaints].sort((a, b) => b.created_at.localeCompare(a.created_at));
+    }
     return this.complaints
       .filter((c) => c.reporter_id === user.id)
       .sort((a, b) => b.created_at.localeCompare(a.created_at));

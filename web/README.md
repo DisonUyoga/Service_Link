@@ -18,7 +18,7 @@ Open:
 - Admin: http://localhost:3001/admin
 - Health: http://localhost:3001/api/health/
 
-Product docs: [`../docs/PRODUCT.md`](../docs/PRODUCT.md) · API: [`../docs/API.md`](../docs/API.md)
+Product docs: [`../docs/PRODUCT.md`](../docs/PRODUCT.md) · API: [`../docs/API.md`](../docs/API.md) · Admin: [`../docs/ADMIN.md`](../docs/ADMIN.md) · Changelog: [`../docs/CHANGELOG.md`](../docs/CHANGELOG.md)
 
 ### Demo accounts (memory / seed)
 
@@ -42,16 +42,18 @@ Default in app config targets port **3001**.
 - `/api/legal/terms/` — current terms + acceptance
 - `/api/services/complaints/` — customer/provider complaints
 - `/api/ai/spellcheck/` — spelling suggestions
+- `/api/devices/push-token/` — provider FCM registration
+- `/api/services/providers/me/heartbeat/` — live GPS
+- `/api/services/providers/admin/` (+ `?provider_id=`) — admin list / detail
 - `/api/services/providers/admin/documents/` — KYC review
+- `/api/admin/allowed-emails/` · `/api/admin/terms/` · `/api/admin/data-quality/`
 
-See [`docs/API.md`](../docs/API.md) for field-level details.
+See [`docs/API.md`](../docs/API.md) and [`docs/CHANGELOG.md`](../docs/CHANGELOG.md) for field-level and FCM/dispatch details.
 
 ## Supabase (production persistence)
 
 1. Create a Supabase project.
-2. Run SQL in order:
-   - [`supabase/migrations/001_initial.sql`](../supabase/migrations/001_initial.sql)
-   - [`supabase/seed.sql`](../supabase/seed.sql)
+2. Run SQL in order under [`supabase/migrations/`](../supabase/migrations/) (`001` … `014`), then seed if needed.
 3. In `web/.env.local`:
 
 ```env

@@ -59,8 +59,20 @@ class ProviderHeartbeatService {
   Future<void> _pushHeartbeat({String? statusOverride}) async {
     try {
       final services = await Geolocator.isLocationServiceEnabled();
-      if (!services) return;
-      if (!await _ensurePermission()) return;
+      if (!services) {
+        developer.log(
+          'Heartbeat skipped: location services disabled',
+          name: 's_link.heartbeat',
+        );
+        return;
+      }
+      if (!await _ensurePermission()) {
+        developer.log(
+          'Heartbeat skipped: location permission missing',
+          name: 's_link.heartbeat',
+        );
+        return;
+      }
 
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,

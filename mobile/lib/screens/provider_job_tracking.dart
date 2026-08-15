@@ -8,6 +8,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../api/dio_client.dart';
 import '../config/app_config.dart';
+import '../utils/provider_location_gate.dart';
 import '../widgets/bolt_live_map.dart';
 
 class ProviderJobTrackingScreen extends StatefulWidget {
@@ -48,7 +49,8 @@ class _ProviderJobTrackingScreenState extends State<ProviderJobTrackingScreen> {
   @override
   void dispose() {
     _positionSub?.cancel();
-    _mapController?.dispose();
+    // BoltLiveMap owns the GoogleMapController.
+    _mapController = null;
     super.dispose();
   }
 
@@ -90,37 +92,12 @@ class _ProviderJobTrackingScreenState extends State<ProviderJobTrackingScreen> {
   }
 
   Future<bool> _ensureLocationPermission() async {
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-
-    if (!serviceEnabled) {
-      setState(() {
-        _error = 'Location services are off. Please enable GPS.';
-      });
-      return false;
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-
-    if (permission == LocationPermission.denied) {
-      setState(() {
-        _error = 'Location permission is required for live tracking.';
-      });
-      return false;
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      setState(() {
-        _error =
-            'Location permission is permanently denied. Enable it from app settings.';
-      });
-      return false;
-    }
-
-    return true;
+    if (!mounted) return false;
+    return ProviderLocationGate.ensure(
+      context,
+      purpose:
+          'Live tracking needs your GPS so the customer can see you arriving at the job pin.',
+    );
   }
 
   Future<void> _startLiveTracking() async {

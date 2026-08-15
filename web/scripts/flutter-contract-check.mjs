@@ -114,11 +114,23 @@ async function main() {
   assert(r.status === 200 && r.data.is_live === true, "heartbeat status");
 
   r = await req("GET", "/services/admin/monitor/providers/live/");
-  assert(r.status === 200 && Array.isArray(r.data.providers), "admin live");
-  assert(
-    r.data.providers.some((p) => p.profile_id === providerId || p.lat != null),
-    "admin live has coords",
-  );
+  assert(r.status === 401 || r.status === 403, "admin live requires auth");
+
+  r = await req("POST", "/accounts/token/", {
+    body: { username: "admin", password: "password123" },
+  });
+  // Demo memory store seeds admin; production/Supabase may not — skip positive path if unavailable.
+  if (r.status === 200 && typeof r.data.access === "string") {
+    const adminTok = r.data.access;
+    r = await req("GET", "/services/admin/monitor/providers/live/", { token: adminTok });
+    assert(r.status === 200 && Array.isArray(r.data.providers), "admin live");
+    assert(
+      r.data.providers.some((p) => p.profile_id === providerId || p.lat != null),
+      "admin live has coords",
+    );
+  } else {
+    console.log("skip admin live positive check (no demo admin token)");
+  }
 
   r = await req("GET", "/services/providers/me/analytics/", { token: provTok });
   assert(r.status === 200 && typeof r.data.user_name === "string", "analytics");

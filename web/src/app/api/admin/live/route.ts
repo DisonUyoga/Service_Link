@@ -1,5 +1,5 @@
 import { detail, handleApiError } from "@/lib/api";
-import { requireUser, requireRole } from "@/lib/auth";
+import { requireUser, requireOperationsAccess } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { createServiceClient } from "@/lib/supabase/admin";
 
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   try {
     const user = await requireUser(req);
-    requireRole(user, ["admin"]);
+    requireOperationsAccess(user);
 
     if (env.demoMode) {
       // Demo/memory mode: heartbeat-only so the UI still shows "Live"

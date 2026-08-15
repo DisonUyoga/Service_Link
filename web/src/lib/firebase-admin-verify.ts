@@ -14,27 +14,45 @@ export type VerifiedFirebaseUser = {
 };
 
 /**
+ * Projects whose tokens are accepted. The admin web console and the Flutter app
+ * sign in against different Firebase projects, so both must be trusted.
+ */
+function acceptedProjectIds(): string[] {
+  const raw = [
+    ...(process.env.FIREBASE_AUTH_PROJECT_IDS || "").split(","),
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    process.env.FIREBASE_AUTH_PROJECT_ID,
+    process.env.FIREBASE_PROJECT_ID,
+  ];
+  return [...new Set(raw.map((v) => (v || "").trim()).filter(Boolean))];
+}
+
+/**
  * Verify a Firebase Auth ID token using Google's public JWKS.
  * No service-account JSON required (verify-only).
  */
 export async function verifyFirebaseIdToken(idToken: string): Promise<VerifiedFirebaseUser> {
-  const projectId =
-    process.env.FIREBASE_PROJECT_ID ||
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
-    "";
+  const projectIds = acceptedProjectIds();
 
-  if (!projectId) {
+  if (projectIds.length === 0) {
     throw Object.assign(new Error("Firebase project ID is not configured"), { status: 500 });
   }
 
-  let payload: Record<string, unknown>;
-  try {
-    const verified = await jwtVerify(idToken, jwks, {
-      issuer: `https://securetoken.google.com/${projectId}`,
-      audience: projectId,
-    });
-    payload = verified.payload as Record<string, unknown>;
-  } catch {
+  let payload: Record<string, unknown> | null = null;
+  for (const projectId of projectIds) {
+    try {
+      const verified = await jwtVerify(idToken, jwks, {
+        issuer: `https://securetoken.google.com/${projectId}`,
+        audience: projectId,
+      });
+      payload = verified.payload as Record<string, unknown>;
+      break;
+    } catch {
+      // try the next accepted project
+    }
+  }
+
+  if (!payload) {
     throw Object.assign(new Error("Invalid or expired Google/Firebase token"), { status: 401 });
   }
 

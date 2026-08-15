@@ -11,8 +11,12 @@ flowchart LR
   nextApi --> storage[ProviderDocsBucket]
   nextApi --> daraja[MPesaDaraja]
   nextApi --> places[GooglePlaces]
+  nextApi --> gemini[GeminiRanking]
+  nextApi --> fcm[FirebaseFCM]
   mobile --> maps[GoogleMaps]
   mobile --> firebase[FirebaseRTDB_tracking]
+  mobile --> fcmClient[FCM_client]
+  fcmClient --> nextApi
   admin[NextAdminConsole] --> nextApi
 ```
 
@@ -20,10 +24,12 @@ flowchart LR
   - `dio` → Next.js `/api`
   - `go_router`, `speech_to_text`, `google_maps_flutter`
   - Firebase Realtime Database for some live tracking paths
+  - **FCM** for provider job offers / broadcasts (`PushNotificationService`)
 - **API:** Next.js App Router in `web/` (Flutter-compatible shapes).
   - Demo mode: in-memory store
   - Production: Supabase service role (`DEMO_MODE=false`)
-- **Data:** SQL migrations in `supabase/migrations/` (`001`…`012`)
+  - AI dispatch + FCM when Gemini + Firebase Admin are configured
+- **Data:** SQL migrations in `supabase/migrations/` (`001`…`014`)
 - **Legacy:** Django in `backend/` — reference only; do not treat as the live API
 
 ## Roles
@@ -36,24 +42,29 @@ flowchart LR
 ### Provider
 - Register + KYC onboarding (ID/passport photo required; good conduct optional)
 - Places-based area of operation; terms acceptance
+- Register FCM token for job push notifications
 - Await admin verification before taking jobs (gatekeeping)
 - Accept jobs, navigate to pin, heartbeat / location updates, complete work
 
 ### Admin
-- Next.js `/admin`: live map, providers (verify/suspend + KYC docs), jobs, payments, ads, **complaints**
+- Next.js `/admin`: live map, providers (verify/suspend + KYC detail/docs), jobs, payments, ads, complaints, **terms**, **access allowlist**, **Kenya data quality**
 
-## Matching
+## Matching & dispatch
 
-Distance is measured from the **job pin** to provider live heartbeat (if fresh) or base location. Providers are **sorted/scored** by distance and quality signals. Hard radius geofencing is not applied.
+Distance is measured from the **job pin** to provider live heartbeat (if fresh) or base location. Providers are **sorted/scored** by distance and quality signals (Gemini ranking when configured). Hard radius geofencing is not applied.
+
+Dispatch flow: rank → notify #1 via FCM → on timeout, broadcast to remaining candidates.
 
 ## Key tables (simplified)
 
 - `profiles`, `service_categories`, `service_provider_profiles` (+ KYC/area fields)
 - `provider_legal_documents` (+ `document_type`, review status)
-- `job_requests` (+ recipient/pin fields)
+- `job_requests` (+ recipient/pin fields + dispatch timestamps)
 - `discovery_payments`, `payments`, `provider_locations`, `ratings`
 - `terms_versions`, `user_terms_acceptances`
 - `complaints`
+- `provider_device_tokens`, `job_dispatches` (FCM / AI dispatch)
+- `admin_allowlist`
 
 ## Security notes
 
@@ -61,3 +72,5 @@ Distance is measured from the **job pin** to provider live heartbeat (if fresh) 
 - Provider docs bucket is private
 - No fingerprint/biometric templates are collected or stored
 - Recipient phone disclosure: after accept for providers
+- Admin Google login requires allowlisted email
+- FCM payloads carry `job_id` + type only (no PII in notification data)

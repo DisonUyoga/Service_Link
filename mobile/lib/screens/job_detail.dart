@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +14,7 @@ import '../widgets/bolt_live_map.dart';
 import '../widgets/job_rating_card.dart';
 import '../widgets/modern_ui.dart';
 import '../widgets/mpesa_payment_card.dart';
+import '../utils/format_label.dart';
 
 class JobDetailScreen extends StatefulWidget {
   final int jobId;
@@ -51,7 +53,8 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
   @override
   void dispose() {
     _firebaseSub?.cancel();
-    _mapController?.dispose();
+    // BoltLiveMap owns the GoogleMapController — do not dispose it here.
+    _mapController = null;
     super.dispose();
   }
 
@@ -202,7 +205,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
       case 'cancelled':
         return 'Cancelled';
       default:
-        return raw.replaceAll('_', ' ');
+        return formatHumanLabel(raw);
     }
   }
 
@@ -255,19 +258,64 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
     final providerName = (_job?['provider_name'] ?? 'your provider').toString();
 
     return Scaffold(
+      backgroundColor: kSoftBackground,
       appBar: AppBar(
-        title: Text('Request #${widget.jobId}'),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+        ),
+        titleSpacing: 8,
+        toolbarHeight: 64,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Request #${widget.jobId}',
+              style: const TextStyle(
+                color: kBrandNavy,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+              ),
+            ),
+            Text(
+              status.isEmpty ? 'Loading…' : formatHumanLabel(status),
+              style: TextStyle(
+                color: statusColor.withValues(alpha: 0.9),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             onPressed: _loadJob,
+            tooltip: 'Refresh',
             icon: const Icon(Icons.refresh_rounded),
           ),
-          IconButton(
-            onPressed: () => context.push('/complaints?job_id=${widget.jobId}'),
-            icon: const Icon(Icons.report_problem_outlined),
-            tooltip: 'Report an issue',
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: IconButton(
+              onPressed: () =>
+                  context.push('/complaints?job_id=${widget.jobId}'),
+              icon: const Icon(Icons.report_problem_outlined),
+              tooltip: 'Report an issue',
+            ),
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            height: 1,
+            color: Colors.black.withValues(alpha: 0.06),
+          ),
+        ),
       ),
       body: PremiumBackground(
         child: _loading
@@ -350,19 +398,34 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                                       _mapController = controller;
                                     },
                                   )
-                                : _TrackingFallbackCard(
-                                    providerPosition: _providerPosition,
+                                : _JobPinMapCard(
                                     customerPosition: _customerPosition,
-                                    lastLocationUpdate: _lastLocationUpdate,
+                                    providerPosition: _providerPosition,
+                                    address: (_job?['formatted_address'] ??
+                                            _job?['address_text'] ??
+                                            '')
+                                        .toString(),
+                                    title: 'Live tracking',
+                                    subtitle: _providerPosition == null
+                                        ? 'Waiting for the provider to start moving.'
+                                        : 'Provider is on the way to your pin.',
                                   ),
                           )
-                        else if (!_showPayment && !_showRating)
+                        else if (_customerPosition != null &&
+                            !_showPayment &&
+                            !_showRating)
                           Padding(
                             padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                            child: _TrackingFallbackCard(
-                              providerPosition: _providerPosition,
+                            child: _JobPinMapCard(
                               customerPosition: _customerPosition,
-                              lastLocationUpdate: _lastLocationUpdate,
+                              providerPosition: _providerPosition,
+                              address: (_job?['formatted_address'] ??
+                                      _job?['address_text'] ??
+                                      '')
+                                  .toString(),
+                              title: 'Your job pin',
+                              subtitle:
+                                  'This is the location you selected when booking. Providers will navigate here.',
                             ),
                           ),
                         Padding(
@@ -684,72 +747,128 @@ class _StatusBanner extends StatelessWidget {
   }
 }
 
-class _TrackingFallbackCard extends StatelessWidget {
-  final LatLng? providerPosition;
+class _JobPinMapCard extends StatelessWidget {
   final LatLng? customerPosition;
-  final DateTime? lastLocationUpdate;
+  final LatLng? providerPosition;
+  final String address;
+  final String title;
+  final String subtitle;
 
-  const _TrackingFallbackCard({
-    required this.providerPosition,
+  const _JobPinMapCard({
     required this.customerPosition,
-    required this.lastLocationUpdate,
+    required this.providerPosition,
+    required this.address,
+    required this.title,
+    required this.subtitle,
   });
 
   @override
   Widget build(BuildContext context) {
-    final hasLocation = providerPosition != null;
+    final pin = customerPosition ?? providerPosition;
+    final markers = <Marker>{};
+    if (customerPosition != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('customer-pin'),
+          position: customerPosition!,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+          infoWindow: const InfoWindow(title: 'Job location'),
+        ),
+      );
+    }
+    if (providerPosition != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('provider'),
+          position: providerPosition!,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+          infoWindow: const InfoWindow(title: 'Provider'),
+        ),
+      );
+    }
 
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFBFDBFE)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Row(
-            children: [
-              Icon(
-                Icons.location_on_rounded,
-                color: Color(0xFF2563EB),
-              ),
-              SizedBox(width: 8),
-              Text(
-                'Live tracking',
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.location_on_rounded, color: Color(0xFF2563EB)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 17,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            hasLocation
-                ? 'Provider location is being received.'
-                : 'Tracking will appear here once the provider starts moving.',
-          ),
-          const SizedBox(height: 12),
-          if (providerPosition != null) ...[
-            Text(
-              'Provider: ${providerPosition!.latitude.toStringAsFixed(6)}, '
-              '${providerPosition!.longitude.toStringAsFixed(6)}',
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    height: 1.35,
+                  ),
+                ),
+                if (address.trim().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    address,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ],
             ),
-          ],
-          if (customerPosition != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Client: ${customerPosition!.latitude.toStringAsFixed(6)}, '
-              '${customerPosition!.longitude.toStringAsFixed(6)}',
-            ),
-          ],
-          if (lastLocationUpdate != null) ...[
-            const SizedBox(height: 6),
-            Text('Last update: ${lastLocationUpdate!.toLocal()}'),
-          ],
+          ),
+          SizedBox(
+            height: 220,
+            child: pin == null || !AppConfig.enableGoogleMaps
+                ? ColoredBox(
+                    color: const Color(0xFFEFF6FF),
+                    child: Center(
+                      child: Text(
+                        pin == null
+                            ? 'No job pin saved for this request.'
+                            : 'Map preview unavailable.',
+                        style: TextStyle(color: Colors.grey.shade700),
+                      ),
+                    ),
+                  )
+                : GoogleMap(
+                    key: ValueKey(
+                      'job-pin-${pin.latitude.toStringAsFixed(5)}-${pin.longitude.toStringAsFixed(5)}',
+                    ),
+                    initialCameraPosition: CameraPosition(target: pin, zoom: 15.5),
+                    markers: markers,
+                    myLocationButtonEnabled: false,
+                    zoomControlsEnabled: false,
+                    compassEnabled: false,
+                    mapToolbarEnabled: false,
+                    liteModeEnabled: false,
+                  ),
+          ),
         ],
       ),
     );
