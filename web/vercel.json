@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/services/jobs/expire-pending/",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
