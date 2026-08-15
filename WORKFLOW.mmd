@@ -1,0 +1,35 @@
+flowchart TD
+  subgraph customerFlow [Customer]
+    registerC[RegisterPlusTerms] --> home[HomeSearch]
+    home --> pin[SetKenyaJobPin]
+    pin --> recipient[RecipientDetails]
+    recipient --> describe[DescribeProblemVoiceOrText]
+    describe --> pay[DiscoveryPayment]
+    pay --> match[RankNearestProviders]
+    match --> job[CreateJob]
+    job --> track[TrackToPin]
+    track --> rate[RateJob]
+    track --> complainC[FileComplaint]
+  end
+
+  subgraph providerFlow [Provider]
+    registerP[RegisterPlusTerms] --> kyc[KYC_ID_Area_Docs]
+    kyc --> awaitAdmin[AwaitAdminVerify]
+    awaitAdmin --> dashboard[ProviderDashboard]
+    dashboard --> accept[AcceptJob]
+    accept --> nav[NavigateToJobPin]
+    nav --> complete[CompleteJob]
+    complete --> complainP[FileComplaint]
+  end
+
+  subgraph adminFlow [Admin]
+    reviewDocs[ReviewKYCDocs] --> verify[VerifyProvider]
+    reviewComplaints[ReviewComplaints] --> resolve[ResolveOrDismiss]
+    liveMap[LiveOpsMap]
+  end
+
+  kyc --> reviewDocs
+  complainC --> reviewComplaints
+  complainP --> reviewComplaints
+  job --> liveMap
+  nav --> liveMap

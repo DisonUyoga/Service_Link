@@ -1,0 +1,1 @@
+Demo-only verification document for John Kariuki. Use real KYC documents only in production.

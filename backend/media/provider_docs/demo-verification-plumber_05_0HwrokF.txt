@@ -1,0 +1,1 @@
+Demo-only verification document for Collins Wekesa. Use real KYC documents only in production.

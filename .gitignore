@@ -1,0 +1,64 @@
+# Dependencies & build
+node_modules/
+.pnp
+.pnp.*
+.next/
+out/
+build/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*service-account*.json
+*firebase*adminsdk*.json
+FIREBASE_SERVICE_ACCOUNT*.json
+
+# Vercel / local tooling
+.vercel
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Django collected static (generated)
+backend/staticfiles/
+**/__pycache__/
+*.py[cod]
+*.pyc
+
+# Large / backup / temp (not source of truth)
+backend_old_backup/
+mobile_removed_*/
+updated-s-link/
+TIMS-temp/
+*.zip
+TIMS-PACKAGE-README.txt
+notes.txt
+
+# Flutter / mobile generated
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/build/
+mobile/**/Pods/
+mobile/**/.symlinks/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/ios/Flutter/Flutter.podspec
+mobile/ios/Flutter/Generated.xcconfig
+mobile/ios/Flutter/ephemeral/
+mobile/ios/ServiceDefinitions.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.iml

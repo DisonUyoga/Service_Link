@@ -1,0 +1,15 @@
+django>=5.0
+djangorestframework
+djangorestframework-simplejwt
+django-filter
+django-cors-headers
+psycopg2-binary
+channels
+channels-redis
+celery
+redis
+python-dotenv
+requests
+google-genai>=1.0.0
+whitenoise
+gunicorn

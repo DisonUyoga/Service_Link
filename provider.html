@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>S-Link — Service Provider</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #ffffff;
+      --bg-elevated: #f5f5f5;
+      --bg-card: #eeeeee;
+      --text: #1a1a1a;
+      --text-muted: #6b7280;
+      --accent: #0082d6;
+      --accent-dim: #006bb3;
+      --accent-glow: rgba(0, 130, 214, 0.25);
+      --gold: #f0b429;
+      --silver: #a8b2bd;
+      --bronze: #c9a227;
+      --mpesa: #00a651;
+      --radius: 12px;
+      --radius-lg: 16px;
+      --safe-top: env(safe-area-inset-top, 0);
+      --safe-bottom: env(safe-area-inset-bottom, 0);
+      --nav-height: 56px;
+      --status-height: 44px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-tap-highlight-color: transparent; overflow: hidden; height: 100%; }
+    body { font-family: 'DM Sans', system-ui, sans-serif; background: #e5e7eb; color: var(--text); min-height: 100vh; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; padding: 24px 0 32px; }
+    .phone { width: 100%; max-width: 390px; min-height: 700px; max-height: 844px; background: var(--bg); border-radius: 36px; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.08); position: relative; display: flex; flex-direction: column; }
+    .status-bar { height: calc(var(--status-height) + var(--safe-top)); padding-top: var(--safe-top); padding-left: 20px; padding-right: 20px; display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 600; color: var(--text); background: var(--bg); flex-shrink: 0; }
+    .app { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; padding: 0 20px calc(var(--nav-height) + var(--safe-bottom) + 20px); scrollbar-width: none; -ms-overflow-style: none; }
+    .app::-webkit-scrollbar { display: none; }
+    .phone *::-webkit-scrollbar { display: none; }
+    .screens { flex: 1; position: relative; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+    .screen { display: none; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
+    .screen.active { display: flex; }
+    .screen .app { flex: 1; min-height: 0; }
+    .screen-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px 16px; flex-shrink: 0; }
+    .screen-header .logo { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.35rem; color: var(--accent); }
+    .back-btn { width: 44px; height: 44px; border-radius: 50%; background: var(--bg-elevated); border: none; color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.2rem; }
+    .screen-header .title { font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; }
+    .screen-header .title-center { flex: 1; text-align: center; }
+    .screen-header .right { width: 44px; }
+    .bottom-nav.hidden { display: none; }
+    .bottom-nav { position: absolute; bottom: 0; left: 0; right: 0; height: calc(var(--nav-height) + var(--safe-bottom)); padding-bottom: var(--safe-bottom); background: rgba(255,255,255,0.98); backdrop-filter: blur(12px); border-top: 1px solid rgba(0,0,0,0.08); display: flex; align-items: flex-start; justify-content: space-around; padding-top: 10px; flex-shrink: 0; }
+    .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 14px; color: var(--text-muted); font-size: 0.7rem; font-weight: 500; cursor: pointer; border: none; background: none; }
+    .nav-item.active { color: var(--accent); }
+    .nav-item .nav-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+
+    /* Onboarding */
+    .onboarding-progress { height: 4px; background: var(--bg-elevated); border-radius: 2px; margin-bottom: 24px; overflow: hidden; }
+    .onboarding-progress .fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
+    .onboarding-welcome { text-align: center; padding: 40px 0 32px; }
+    .onboarding-welcome .icon { font-size: 3rem; margin-bottom: 16px; }
+    .onboarding-welcome h1 { font-family: 'Outfit', sans-serif; font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
+    .onboarding-welcome p { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 32px; line-height: 1.5; }
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 14px 16px; border: 1px solid rgba(0,0,0,0.1); border-radius: var(--radius); font-size: 1rem; font-family: inherit; background: var(--bg); color: var(--text); }
+    .form-group input::placeholder, .form-group textarea::placeholder { color: var(--text-muted); }
+    .form-group input:focus, .form-group textarea:focus { outline: none; border-color: var(--accent); }
+    .form-group .hint { font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; }
+    .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 16px 20px; border-radius: var(--radius); font-weight: 600; font-size: 1rem; cursor: pointer; border: none; transition: opacity 0.2s; }
+    .btn:active { opacity: 0.9; }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-dim)); color: #fff; }
+    .btn-outline { background: transparent; color: var(--text); border: 1px solid rgba(0,0,0,0.15); margin-top: 10px; }
+    .step-title { font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700; margin-bottom: 8px; }
+    .step-desc { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 24px; }
+    .category-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 24px; }
+    .category-option { background: var(--bg-elevated); border: 2px solid rgba(0,0,0,0.08); border-radius: var(--radius); padding: 16px; text-align: center; cursor: pointer; }
+    .category-option.selected { border-color: var(--accent); background: rgba(0, 130, 214, 0.08); }
+    .category-option .emoji { font-size: 1.5rem; margin-bottom: 8px; }
+    .category-option span { font-size: 0.9rem; font-weight: 600; }
+    .avatar-upload { width: 100px; height: 100px; border-radius: 50%; background: var(--bg-elevated); border: 2px dashed rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; cursor: pointer; font-size: 2rem; color: var(--text-muted); }
+    .onboarding-done { text-align: center; padding: 32px 0; }
+    .onboarding-done .check { width: 72px; height: 72px; border-radius: 50%; background: rgba(0, 130, 214, 0.15); color: var(--accent); font-size: 2.5rem; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+    .onboarding-done h2 { font-family: 'Outfit', sans-serif; font-size: 1.35rem; margin-bottom: 8px; }
+    .onboarding-done p { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 28px; }
+
+    /* Provider dashboard */
+    .section-label { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 10px; }
+    .section-title { font-family: 'Outfit', sans-serif; font-size: 1.2rem; font-weight: 700; margin-bottom: 12px; }
+    .greeting { margin-bottom: 20px; }
+    .greeting h1 { font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
+    .greeting p { color: var(--text-muted); font-size: 0.9rem; }
+    .stat-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
+    .stat-card { background: var(--bg-elevated); border-radius: var(--radius); padding: 14px; text-align: center; border: 1px solid rgba(0,0,0,0.08); }
+    .stat-card .val { font-size: 1.25rem; font-weight: 700; color: var(--accent); }
+    .stat-card .lbl { font-size: 0.7rem; color: var(--text-muted); }
+    .request-card { background: var(--bg-elevated); border: 1px solid rgba(0,0,0,0.08); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 12px; }
+    .request-card .title { font-weight: 600; font-size: 1rem; margin-bottom: 4px; }
+    .request-card .meta { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; }
+    .request-card .actions { display: flex; gap: 10px; }
+    .request-card .actions .btn { flex: 1; padding: 12px; font-size: 0.9rem; }
+    .job-card { background: var(--bg-elevated); border: 1px solid rgba(0,0,0,0.08); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 12px; }
+    .job-card .job-title { font-weight: 600; font-size: 1rem; margin-bottom: 4px; }
+    .job-card .job-meta { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; }
+    .job-card .job-status { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+    .job-card .job-status.live { background: rgba(0, 130, 214, 0.2); color: var(--accent); }
+    .job-card .job-status.done { background: rgba(0,0,0,0.06); color: var(--text-muted); }
+    .list-row { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid rgba(0,0,0,0.08); cursor: pointer; text-decoration: none; color: inherit; }
+    .list-row .icon-wrap { width: 44px; height: 44px; border-radius: 12px; background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+    .list-row .label { font-weight: 600; font-size: 1rem; }
+    .list-row .sublabel { font-size: 0.85rem; color: var(--text-muted); }
+    .list-row .chevron { margin-left: auto; color: var(--text-muted); }
+    .profile-header { text-align: center; padding: 24px 0 20px; }
+    .profile-header .avatar-lg { width: 80px; height: 80px; border-radius: 50%; background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; font-size: 2.2rem; margin: 0 auto 12px; }
+    .profile-header .name { font-size: 1.25rem; font-weight: 700; margin-bottom: 4px; }
+    .profile-header .meta { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px; }
+    .tier-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
+    .tier-badge.bronze { background: rgba(201, 162, 39, 0.2); color: var(--bronze); }
+    .tier-badge.silver { background: rgba(168, 178, 189, 0.2); color: var(--silver); }
+    .tier-badge.gold { background: rgba(240, 180, 41, 0.2); color: var(--gold); }
+    .tier-badge.platinum { background: rgba(240, 180, 41, 0.3); color: #b8860b; }
+    .divider { height: 8px; background: var(--bg-elevated); margin: 0 -20px; }
+    .ad-card-mobile { background: var(--bg-card); border-radius: var(--radius); padding: 14px 16px; border: 1px solid rgba(0,0,0,0.08); margin-bottom: 12px; }
+    .ad-card-mobile .tag { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gold); margin-bottom: 6px; }
+    .ad-card-mobile h4 { font-size: 0.95rem; margin-bottom: 2px; }
+    .ad-card-mobile p { font-size: 0.8rem; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <div class="status-bar">
+      <span class="time">9:41</span>
+      <div class="icons"><span>📶</span><span>📡</span><span>🔋</span></div>
+    </div>
+
+    <div class="screens">
+      <!-- ========== ONBOARDING: WELCOME ========== -->
+      <div id="screen-onboard-welcome" class="screen active">
+        <div class="screen-header"><span class="logo">S-Link</span><span class="right"></span></div>
+        <div class="app">
+          <div class="onboarding-welcome">
+            <div class="icon">🛠️</div>
+            <h1>Become a service provider</h1>
+            <p>Join S-Link and get connected to customers who need plumbers, electricians, painters and more. Set your area, get paid via M-Pesa.</p>
+            <button type="button" class="btn btn-primary" data-go="onboard-personal">Get started</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== ONBOARDING: PERSONAL INFO ========== -->
+      <div id="screen-onboard-personal" class="screen">
+        <div class="screen-header">
+          <button type="button" class="back-btn" data-back>‹</button>
+          <span class="title title-center">About you</span>
+          <span class="right"></span>
+        </div>
+        <div class="app">
+          <div class="onboarding-progress"><div class="fill" style="width: 16%;"></div></div>
+          <div class="step-title">Personal details</div>
+          <div class="step-desc">We need this to verify your account and display your profile.</div>
+          <div class="form-group">
+            <label>Full name</label>
+            <input type="text" placeholder="e.g. James Ochieng" />
+          </div>
+          <div class="form-group">
+            <label>Phone number</label>
+            <input type="tel" placeholder="e.g. 07XX XXX XXX" />
+            <div class="hint">Used for M-Pesa and notifications.</div>
+          </div>
+          <div class="form-group">
+            <label>Email (optional)</label>
+            <input type="email" placeholder="you@example.com" />
+          </div>
+          <button type="button" class="btn btn-primary" data-go="onboard-service">Continue</button>
+        </div>
+      </div>
+
+      <!-- ========== ONBOARDING: SERVICE & AREA ========== -->
+      <div id="screen-onboard-service" class="screen">
+        <div class="screen-header">
+          <button type="button" class="back-btn" data-back>‹</button>
+          <span class="title title-center">Your service</span>
+          <span class="right"></span>
+        </div>
+        <div class="app">
+          <div class="onboarding-progress"><div class="fill" style="width: 33%;"></div></div>
+          <div class="step-title">What do you offer?</div>
+          <div class="step-desc">Pick your main category. You can add more later.</div>
+          <div class="category-grid">
+            <div class="category-option" data-select><span class="emoji">🔧</span><span>Plumber</span></div>
+            <div class="category-option" data-select><span class="emoji">⚡</span><span>Electrician</span></div>
+            <div class="category-option" data-select><span class="emoji">🎨</span><span>Painter</span></div>
+            <div class="category-option" data-select><span class="emoji">🛠️</span><span>Technician</span></div>
+            <div class="category-option" data-select><span class="emoji">👞</span><span>Cobbler</span></div>
+            <div class="category-option" data-select><span class="emoji">🪚</span><span>Carpenter</span></div>
+            <div class="category-option" data-select><span class="emoji">✨</span><span>Cleaner</span></div>
+            <div class="category-option" data-select><span class="emoji">📋</span><span>Other</span></div>
+          </div>
+          <div class="form-group">
+            <label>Service area (e.g. neighbourhoods or town)</label>
+            <input type="text" placeholder="e.g. Westlands, Parklands, Nairobi" />
+          </div>
+          <button type="button" class="btn btn-primary" data-go="onboard-id">Continue</button>
+        </div>
+      </div>
+
+      <!-- ========== ONBOARDING: ID & VERIFICATION ========== -->
+      <div id="screen-onboard-id" class="screen">
+        <div class="screen-header">
+          <button type="button" class="back-btn" data-back>‹</button>
+          <span class="title title-center">Verification</span>
+          <span class="right"></span>
+        </div>
+        <div class="app">
+          <div class="onboarding-progress"><div class="fill" style="width: 50%;"></div></div>
+          <div class="step-title">ID & verification</div>
+          <div class="step-desc">Helps us keep the platform safe. Trade certificates can help you get a higher tier later.</div>
+          <div class="form-group">
+            <label>ID type</label>
+            <select><option>National ID</option><option>Passport</option></select>
+          </div>
+          <div class="form-group">
+            <label>ID number</label>
+            <input type="text" placeholder="Enter ID number" />
+          </div>
+          <div class="form-group">
+            <label>Trade certificate (optional)</label>
+            <input type="text" placeholder="e.g. wiring licence, plumbing cert" />
+            <div class="hint">Upload or enter details. Improves your tier.</div>
+          </div>
+          <button type="button" class="btn btn-primary" data-go="onboard-mpesa">Continue</button>
+        </div>
+      </div>
+
+      <!-- ========== ONBOARDING: M-PESA PAYOUT ========== -->
+      <div id="screen-onboard-mpesa" class="screen">
+        <div class="screen-header">
+          <button type="button" class="back-btn" data-back>‹</button>
+          <span class="title title-center">Get paid</span>
+          <span class="right"></span>
+        </div>
+        <div class="app">
+          <div class="onboarding-progress"><div class="fill" style="width: 66%;"></div></div>
+          <div class="step-title">M-Pesa for payouts</div>
+          <div class="step-desc">We pay you here when customers pay for your services. Use your Till or Paybill.</div>
+          <div class="form-group">
+            <label>M-Pesa Till number or Paybill</label>
+            <input type="text" placeholder="e.g. 123456 or 123456 / Acc 789" />
+            <div class="hint">Same number you use to receive payments.</div>
+          </div>
+          <div class="form-group">
+            <label>Account name (if Paybill)</label>
+            <input type="text" placeholder="Your business or name" />
+          </div>
+          <button type="button" class="btn btn-primary" data-go="onboard-profile">Continue</button>
+        </div>
+      </div>
+
+      <!-- ========== ONBOARDING: PROFILE PHOTO & BIO ========== -->
+      <div id="screen-onboard-profile" class="screen">
+        <div class="screen-header">
+          <button type="button" class="back-btn" data-back>‹</button>
+          <span class="title title-center">Your profile</span>
+          <span class="right"></span>
+        </div>
+        <div class="app">
+          <div class="onboarding-progress"><div class="fill" style="width: 83%;"></div></div>
+          <div class="step-title">Photo & bio</div>
+          <div class="step-desc">Customers see this when they choose a provider.</div>
+          <div class="avatar-upload">📷<br><span style="font-size: 0.7rem;">Add photo</span></div>
+          <div class="form-group">
+            <label>Short bio (what you do, experience)</label>
+            <textarea rows="3" placeholder="e.g. 5+ years plumbing. Pipes, taps, geysers. Westlands & nearby."></textarea>
+          </div>
+          <button type="button" class="btn btn-primary" data-go="onboard-done">Finish</button>
+        </div>
+      </div>
+
+      <!-- ========== ONBOARDING: DONE ========== -->
+      <div id="screen-onboard-done" class="screen">
+        <div class="screen-header"><span class="logo">S-Link</span><span class="right"></span></div>
+        <div class="app">
+          <div class="onboarding-done">
+            <div class="check">✓</div>
+            <h2>You’re in!</h2>
+            <p>We’re reviewing your details. You’ll start as Bronze and can move up to Silver, Gold and Platinum as you complete jobs and get good ratings.</p>
+            <button type="button" class="btn btn-primary" data-go="dashboard">Go to dashboard</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== DASHBOARD (Provider app home) ========== -->
+      <div id="screen-dashboard" class="screen">
+        <div class="screen-header">
+          <span class="logo">S-Link</span>
+          <button type="button" class="back-btn" style="visibility: hidden;">🔔</button>
+        </div>
+        <div class="app">
+          <div class="greeting">
+            <h1>Hi, James</h1>
+            <p>Here’s what’s happening today.</p>
+          </div>
+          <div class="stat-cards">
+            <div class="stat-card"><div class="val">2</div><div class="lbl">New requests</div></div>
+            <div class="stat-card"><div class="val">1</div><div class="lbl">Active job</div></div>
+            <div class="stat-card"><div class="val">KES 2.4k</div><div class="lbl">This week</div></div>
+          </div>
+          <p class="section-label">New requests</p>
+          <div class="request-card">
+            <div class="title">Plumber needed — Westlands</div>
+            <div class="meta">Customer · ~2 km away · Now</div>
+            <div class="actions">
+              <button type="button" class="btn btn-primary" style="flex:1;">Accept</button>
+              <button type="button" class="btn btn-outline" style="flex:1;">Decline</button>
+            </div>
+          </div>
+          <div class="request-card">
+            <div class="title">Tap repair — Kilimani</div>
+            <div class="meta">Customer · ~5 km · 30 min ago</div>
+            <div class="actions">
+              <button type="button" class="btn btn-primary" style="flex:1;">Accept</button>
+              <button type="button" class="btn btn-outline" style="flex:1;">Decline</button>
+            </div>
+          </div>
+          <p class="section-label" style="margin-top: 20px;">For you</p>
+          <div class="ad-card-mobile">
+            <div class="tag">Sponsored</div>
+            <h4>BuildMart — Paints & hardware</h4>
+            <p>Bulk discounts for pros. Same-day delivery.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== JOBS (Provider) ========== -->
+      <div id="screen-jobs" class="screen">
+        <div class="screen-header">
+          <span class="logo">S-Link</span>
+          <span class="right"></span>
+        </div>
+        <div class="app">
+          <h2 class="section-title">My jobs</h2>
+          <div class="job-card">
+            <div class="job-title">Plumber — Westlands</div>
+            <div class="job-meta">Customer · Today 10:00 · KES 50 received</div>
+            <span class="job-status live">● En route</span>
+            <button type="button" class="btn btn-primary" style="margin-top: 12px;">Navigate to customer</button>
+          </div>
+          <div class="job-card">
+            <div class="job-title">Pipe repair — Parklands</div>
+            <div class="job-meta">Yesterday · Completed</div>
+            <span class="job-status done">Completed</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== PROFILE (Provider) ========== -->
+      <div id="screen-profile" class="screen">
+        <div class="screen-header">
+          <span class="logo">S-Link</span>
+          <span class="right"></span>
+        </div>
+        <div class="app">
+          <div class="profile-header">
+            <div class="avatar-lg">🔧</div>
+            <div class="name">James Ochieng</div>
+            <div class="meta">Plumber · Westlands</div>
+            <span class="tier-badge bronze">Bronze</span>
+          </div>
+          <a href="#" class="list-row">
+            <div class="icon-wrap">✏️</div>
+            <div><div class="label">Edit profile</div><div class="sublabel">Photo, bio, service area</div></div>
+            <span class="chevron">›</span>
+          </a>
+          <a href="#" class="list-row">
+            <div class="icon-wrap">💳</div>
+            <div><div class="label">Payout details</div><div class="sublabel">M-Pesa Till · 123456</div></div>
+            <span class="chevron">›</span>
+          </a>
+          <a href="#" class="list-row">
+            <div class="icon-wrap">🏆</div>
+            <div><div class="label">Your tier</div><div class="sublabel">Bronze → complete jobs to rise</div></div>
+            <span class="chevron">›</span>
+          </a>
+          <div class="divider"></div>
+          <a href="#" class="list-row">
+            <div class="icon-wrap">🛒</div>
+            <div><div class="label">Supplier deals</div><div class="sublabel">Tools, materials, discounts</div></div>
+            <span class="chevron">›</span>
+          </a>
+          <a href="#" class="list-row">
+            <div class="icon-wrap">📄</div>
+            <div><div class="label">Terms & help</div></div>
+            <span class="chevron">›</span>
+          </a>
+          <p style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 20px 0;">S-Link Provider</p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="bottom-nav hidden" id="bottomNav" role="tablist">
+      <button type="button" class="nav-item active" data-tab="dashboard"><span class="nav-icon">🏠</span><span>Home</span></button>
+      <button type="button" class="nav-item" data-tab="jobs"><span class="nav-icon">📌</span><span>Jobs</span></button>
+      <button type="button" class="nav-item" data-tab="profile"><span class="nav-icon">👤</span><span>Profile</span></button>
+    </nav>
+  </div>
+
+  <script>
+    (function () {
+      var TAB_SCREENS = { dashboard: 'screen-dashboard', jobs: 'screen-jobs', profile: 'screen-profile' };
+      var tabIds = ['screen-dashboard', 'screen-jobs', 'screen-profile'];
+
+      function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('active'); });
+        var el = document.getElementById(id);
+        if (el) el.classList.add('active');
+        var showNav = tabIds.indexOf(id) !== -1;
+        document.getElementById('bottomNav').classList.toggle('hidden', !showNav);
+        document.querySelectorAll('.nav-item').forEach(function (n) {
+          n.classList.toggle('active', n.getAttribute('data-tab') === id.replace('screen-', ''));
+        });
+      }
+
+      window._providerStack = ['screen-onboard-welcome'];
+
+      function goBack() {
+        var stack = window._providerStack;
+        if (stack.length > 1) {
+          stack.pop();
+          showScreen(stack[stack.length - 1]);
+        } else showScreen('screen-onboard-welcome');
+      }
+
+      function navigateTo(id) {
+        var fullId = id.indexOf('screen-') === 0 ? id : 'screen-' + id;
+        window._providerStack.push(fullId);
+        if (fullId === 'screen-dashboard') window._providerStack = ['screen-dashboard'];
+        showScreen(fullId);
+      }
+
+      document.querySelectorAll('[data-go]').forEach(function (el) {
+        el.addEventListener('click', function (e) {
+          e.preventDefault();
+          var id = this.getAttribute('data-go');
+          navigateTo(id);
+        });
+      });
+
+      document.querySelectorAll('[data-back]').forEach(function (el) {
+        el.addEventListener('click', goBack);
+      });
+
+      document.querySelectorAll('.nav-item[data-tab]').forEach(function (el) {
+        el.addEventListener('click', function () {
+          var tab = this.getAttribute('data-tab');
+          if (TAB_SCREENS[tab]) {
+            showScreen(TAB_SCREENS[tab]);
+            document.querySelectorAll('.nav-item').forEach(function (n) { n.classList.remove('active'); });
+            this.classList.add('active');
+          }
+        });
+      });
+
+      document.querySelectorAll('.category-option[data-select]').forEach(function (el) {
+        el.addEventListener('click', function () {
+          this.parentElement.querySelectorAll('.category-option').forEach(function (o) { o.classList.remove('selected'); });
+          this.classList.add('selected');
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
